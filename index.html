@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ストリングカウンセラー</title>
+<!-- theme-color はCSS変数を使えないので、--bg と同じ値を書いている -->
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F5F7F4">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0E1511">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ストリング">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="logo/icon-192.png">
+<link rel="apple-touch-icon" href="logo/apple-touch-icon-180.png">
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=M+PLUS+Rounded+1c:wght@800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 上部のタブで「探す」と「設定」を切り替え。探す画面は左に条件、右に結果(スマホは縦積み)。 */
+:root {
+  --bg: #F5F7F4;
+  --surface: #FFFFFF;
+  --ink: #16201B;
+  --muted: #5B685F;
+  --line: #DCE2DC;
+  --accent: #1F6B47;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E2EFE7;
+  --bar: #8D9A92;
+  --track: #DDE3DD;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1511; --surface: #151D18; --ink: #E6EDE8; --muted: #93A399; --line: #26332B;
+    --accent: #6CC595; --accent-ink: #0E1511; --accent-soft: #1B2B22; --bar: #6F8076; --track: #2A372F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1511; --surface: #151D18; --ink: #E6EDE8; --muted: #93A399; --line: #26332B;
+  --accent: #6CC595; --accent-ink: #0E1511; --accent-soft: #1B2B22; --bar: #6F8076; --track: #2A372F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.7;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+h1, h2, h3, p { margin: 0; }
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+.hrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: .02em; text-wrap: balance; }
+header p { color: var(--muted); font-size: .9rem; max-width: 62ch; }
+.logo { display: flex; align-items: center; gap: 12px; font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Zen Kaku Gothic New", "Yu Gothic", Meiryo, sans-serif; font-weight: 800; letter-spacing: 0; }
+.logo-mark { width: 52px; height: auto; flex: none; }
+.logo-mark .lg-bubble { fill: var(--accent); }
+.logo-text { display: flex; flex-direction: column; line-height: 1.1; }
+.logo .l1 { font-size: .95rem; color: var(--accent); letter-spacing: .14em; }
+.logo .l2 { font-size: 1.7rem; color: var(--ink); letter-spacing: .02em; }
+.logo small { font-family: var(--font-num); font-weight: 500; font-size: .6rem; letter-spacing: .26em; color: var(--muted); margin-top: 4px; }
+.tabs { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.tabs button { border: 0; background: transparent; padding: 7px 22px; cursor: pointer; font-weight: 500; }
+.tabs button + button { border-left: 1px solid var(--line); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (min-width: 900px) {
+  .layout { grid-template-columns: 350px minmax(0, 1fr); gap: 32px; }
+  aside { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+}
+aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+details.panel > summary {
+  list-style: none; cursor: pointer; padding: 12px 16px; font-weight: 700; font-size: .95rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+details.panel > summary::-webkit-details-marker { display: none; }
+details.panel > summary::after { content: "+"; font-family: var(--font-num); color: var(--muted); }
+details.panel[open] > summary::after { content: "−"; }
+.panel-body { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+.modebox { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+.label { font-size: .78rem; letter-spacing: .06em; color: var(--muted); font-weight: 500; margin-bottom: 6px; display: block; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid var(--line); background: transparent; border-radius: 4px; padding: 4px 10px;
+  font-size: .85rem; cursor: pointer; line-height: 1.5;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.seg { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 4px; cursor: pointer; font-size: .85rem; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg.s2 { --n: 2; } .seg.s3 { --n: 3; }
+
+.slider { display: grid; grid-template-columns: 6.2em 1fr 3.4em; align-items: center; gap: 10px; }
+.slider span.nm { font-size: .88rem; }
+.slider span.val { font-size: .75rem; color: var(--muted); text-align: right; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.check { display: flex; gap: 8px; align-items: center; font-size: .88rem; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+input[type="search"], select.full {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.minrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.minrow label { display: flex; flex-direction: column; gap: 2px; font-size: .8rem; color: var(--muted); }
+.minrow select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); }
+.linkbtn { background: none; border: 0; color: var(--accent); cursor: pointer; text-align: left; padding: 0; font-size: .85rem; text-decoration: underline; text-underline-offset: 3px; }
+.hint { font-size: .8rem; color: var(--muted); }
+
+.cond { display: flex; flex-direction: column; gap: 6px; }
+.cond .seg { max-width: 260px; }
+.cond .seg button { font-size: .78rem; }
+.tradeoffs { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; }
+
+main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.bar-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.bar-top h2 { font-size: 1.05rem; font-weight: 700; }
+.count { font-family: var(--font-num); font-size: .8rem; color: var(--muted); }
+.notice { font-size: .82rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+
+.current { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+.current .t { font-size: .78rem; letter-spacing: .06em; color: var(--accent); font-weight: 700; }
+
+ol.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 14px; }
+.rank { font-family: var(--font-num); font-size: 1.1rem; color: var(--muted); width: 1.6em; padding-top: 1px; }
+.item:nth-child(-n+3) .rank { color: var(--accent); font-weight: 500; }
+.head { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
+.head h3 { font-size: 1.02rem; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.sub { font-size: .78rem; color: var(--muted); font-family: var(--font-num); overflow-wrap: anywhere; }
+.meta { font-size: .8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 4px; }
+.tag { background: var(--accent-soft); color: var(--accent); padding: 0 7px; border-radius: 3px; font-size: .75rem; font-weight: 500; }
+.tag.edited { background: transparent; border: 1px solid var(--accent); }
+.score { text-align: right; font-family: var(--font-num); line-height: 1.1; }
+.score b { font-size: 1.5rem; font-weight: 500; color: var(--accent); }
+.score small { display: block; font-size: .68rem; color: var(--muted); margin-top: 2px; }
+.why { grid-column: 2 / -1; font-size: .85rem; margin-top: 4px; }
+.metrics { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 22px; margin-top: 6px; }
+.m { display: grid; grid-template-columns: 6em minmax(0, 1fr) 2.3em; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); }
+.m.cmp { grid-template-columns: 6em minmax(0, 1fr) 2.3em 3.6em; }
+.m.hot { color: var(--ink); font-weight: 500; }
+.m .track { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
+.m .track i { display: block; height: 100%; background: var(--bar); }
+.m.hot .track i { background: var(--accent); }
+.m .v { font-family: var(--font-num); text-align: right; }
+.m .dl { font-family: var(--font-num); text-align: right; color: var(--muted); }
+.m .dl.ok { color: var(--accent); font-weight: 500; }
+.m .dl.ng { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.actions { grid-column: 2 / -1; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+.star { background: none; border: 0; padding: 2px; cursor: pointer; color: var(--muted); display: inline-flex; flex: none; }
+.star svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.star[aria-pressed="true"] { color: var(--accent); }
+.star[aria-pressed="true"] svg { fill: currentColor; }
+.editor { grid-column: 2 / -1; margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.editor .minrow { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.editbtns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 28px 16px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.more { align-self: center; }
+.foot { font-size: .78rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; margin-top: 8px; max-width: 80ch; }
+
+/* 設定画面 */
+#view-settings { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.stoolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 8px; display: flex; flex-direction: column; gap: 8px; }
+.srow-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.stotal { font-family: var(--font-num); font-size: .9rem; }
+.stotal b { color: var(--accent); font-size: 1.3rem; font-weight: 500; }
+.sbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.mk { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.mk-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; flex-wrap: wrap; }
+.mk-head .toggle { flex: 1 1 200px; text-align: left; background: none; border: 0; cursor: pointer; padding: 4px 0; font-weight: 700; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.mk-head .toggle small { font-family: var(--font-num); font-weight: 400; color: var(--muted); font-size: .75rem; }
+.mk-head .cnt { font-family: var(--font-num); font-size: .78rem; color: var(--muted); }
+.mk-head .acts { display: flex; gap: 12px; }
+.mk-body { border-top: 1px solid var(--line); display: flex; flex-direction: column; }
+.srow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; cursor: pointer; }
+.sitem + .sitem { border-top: 1px solid var(--line); }
+.sact { padding: 0 12px 8px 40px; display: flex; gap: 10px; align-items: center; }
+.sitem .editor { margin: 0; padding: 10px 12px 12px; }
+.srow input { accent-color: var(--accent); width: 18px; height: 18px; }
+.srow .sn { min-width: 0; overflow-wrap: anywhere; }
+.srow .sn small { display: block; font-family: var(--font-num); font-size: .72rem; color: var(--muted); }
+.srow.off .sn { color: var(--muted); text-decoration: line-through; }
+/* ポジショニングマップ */
+.mapctl { display: flex; gap: 12px; flex-wrap: wrap; }
+.mapctl label { display: flex; gap: 6px; align-items: center; font-size: .82rem; color: var(--muted); }
+.mapctl select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); }
+.mapsvg { width: 100%; max-width: 560px; height: auto; display: block; margin: 0 auto; }
+.mapsvg .pbg { fill: var(--bg); }
+.mapsvg .gl { stroke: var(--line); stroke-width: 1; }
+.mapsvg .ax { stroke: var(--bar); stroke-width: 1.2; }
+.mapsvg .fr { fill: none; stroke: var(--line); }
+.mapsvg .goal { fill: var(--accent); fill-opacity: .12; }
+.mapsvg .tk { font-size: 10px; fill: var(--muted); font-family: var(--font-num); text-anchor: middle; }
+.mapsvg .at { font-size: 11px; fill: var(--ink); text-anchor: middle; }
+.mapsvg .me { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.mapsvg .metx { font-size: 11px; fill: var(--ink); font-weight: 700; }
+.mapsvg .hit { fill: transparent; }
+.mapsvg .cell { cursor: pointer; outline: none; }
+.mapsvg .cell:focus-visible .hit { stroke: var(--accent); stroke-width: 1.5; }
+.mapsvg .sel { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+.dot.in { fill: var(--accent); stroke: var(--surface); stroke-width: .6; }
+.dot.out { fill: none; stroke: var(--bar); stroke-width: 1.2; }
+.maplegend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); }
+.maplegend span { display: inline-flex; gap: 5px; align-items: center; }
+.mapcap { font-size: .85rem; min-height: 3.2em; overflow-wrap: anywhere; }
+.mapcap small { display: block; color: var(--muted); font-family: var(--font-num); font-size: .78rem; }
+@media (max-width: 520px) { .item { padding: 12px; gap: 4px 10px; } .score b { font-size: 1.25rem; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* iOSは16px未満の入力欄にフォーカスすると画面を拡大するので、タッチ端末では16pxにする */
+@media (pointer: coarse) { input, select, textarea { font-size: 16px !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="hrow">
+      <h1 class="logo" aria-label="ストリングカウンセラー">
+        <svg class="logo-mark" viewBox="0 0 100.0 97.9" aria-hidden="true"><path class="lg-bubble" fill-rule="evenodd" d="M60.7 54.3 60.7 64.9 71.3 65.1 71.5 64.9 71.5 54.3ZM44.9 54.3 44.9 64.9 45.1 65.1 46.8 65.1 47.0 64.9 47.8 65.1 48.4 64.9 49.5 64.9 49.7 65.1 53.6 65.1 53.8 64.9 54.1 65.1 55.7 65.1 55.9 64.9 55.9 54.3ZM29.1 54.3 29.1 64.9 29.3 65.1 30.4 64.9 40.1 64.9 40.1 54.3ZM60.7 37.8 60.7 49.3 71.5 49.3 71.5 37.8ZM44.9 37.8 44.9 49.3 55.9 49.3 55.9 37.8ZM29.1 37.8 29.1 49.3 39.9 49.3 40.1 49.1 40.1 37.8ZM84.4 12.9 80.7 9.8 76.3 6.9 71.9 4.6 65.9 2.3 65.3 2.3 62.2 1.2 59.0 0.6 56.3 0.4 56.1 0.2 54.3 0.2 54.1 0.0 45.3 0.0 45.1 0.2 41.8 0.4 36.6 1.5 33.7 2.5 33.1 2.5 27.9 4.6 22.9 7.3 16.6 11.9 11.6 16.8 7.5 22.5 3.7 29.5 1.9 34.7 0.6 40.1 0.4 43.0 0.2 43.2 0.2 46.6 0.0 46.8 0.2 53.4 0.4 53.6 0.6 56.8 1.9 62.2 3.7 67.4 6.0 71.9 8.5 75.9 10.8 78.6 10.6 80.0 7.9 86.3 5.0 91.7 3.5 93.8 3.3 96.0 4.4 97.5 5.2 97.9 7.5 97.9 12.5 96.5 18.1 94.0 24.7 90.0 28.3 91.7 34.1 93.8 43.0 95.6 47.8 95.8 48.0 96.0 52.6 96.0 52.8 95.8 55.7 95.8 55.9 95.6 59.3 95.4 63.6 94.6 66.7 93.6 67.4 93.6 72.3 91.7 78.0 88.8 84.4 84.0 88.6 79.8 91.5 76.1 94.0 72.1 96.7 66.5 98.3 61.5 99.8 54.1 100.0 44.7 99.8 44.5 99.8 42.4 99.6 42.2 99.6 41.0 99.0 37.6 98.1 34.5 96.0 28.9 93.6 24.1 90.6 19.8 87.7 16.2ZM25.4 20.0 26.4 19.5 27.4 19.8 28.9 21.0 29.1 21.6 29.1 33.1 39.9 33.1 40.1 32.8 40.1 20.8 41.0 19.5 42.4 18.9 43.7 19.3 44.5 20.2 44.9 21.2 44.9 33.1 55.9 33.1 55.9 21.0 56.3 20.2 57.6 19.1 59.5 19.3 60.5 20.4 60.7 21.0 60.7 32.8 60.9 33.1 71.5 33.1 71.5 21.6 71.7 21.0 72.8 19.8 73.4 19.5 74.6 19.5 76.1 20.8 76.3 21.2 76.3 32.8 76.5 33.1 83.2 33.1 83.8 33.3 85.0 34.7 85.0 36.2 83.8 37.6 83.2 37.8 76.5 37.8 76.3 38.0 76.3 49.3 83.0 49.3 84.0 49.7 85.0 50.9 85.0 52.6 83.8 54.1 83.2 54.3 76.5 54.3 76.3 54.5 76.3 64.9 76.5 65.1 83.4 65.1 84.2 65.5 85.0 66.5 85.0 68.2 83.6 69.6 76.7 69.6 76.3 69.9 76.3 78.6 75.1 80.0 74.6 80.2 72.8 80.0 71.7 78.8 71.5 78.2 71.5 69.9 71.3 69.6 60.9 69.6 60.7 69.9 60.7 78.4 60.5 79.0 59.5 80.0 58.8 80.2 57.2 80.0 56.1 79.0 55.9 78.4 55.9 69.9 55.7 69.6 45.1 69.6 44.9 69.9 44.9 77.8 44.5 79.0 43.5 80.0 42.6 80.2 41.2 79.8 40.1 78.4 40.1 69.9 39.9 69.6 29.1 69.6 29.1 78.2 28.7 79.2 28.1 79.8 27.2 80.2 26.2 80.2 25.6 80.0 24.3 78.6 24.3 70.1 24.1 69.9 16.6 69.9 15.2 69.0 14.8 68.4 14.6 67.2 15.0 66.1 16.4 65.1 24.1 65.1 24.3 64.9 24.3 54.5 24.1 54.3 16.4 54.3 15.8 54.1 14.6 52.4 14.8 50.7 16.2 49.5 23.9 49.5 24.3 49.3 24.3 38.0 24.1 37.8 16.2 37.8 14.8 36.6 14.6 34.9 15.6 33.5 16.6 33.1 21.0 33.1 21.2 33.3 21.6 33.1 23.7 33.1 23.9 33.3 24.3 33.1 24.3 21.4Z"/></svg>
+        <span class="logo-text"><span class="l1">ストリング</span><span class="l2">カウンセラー</span><small>STRING COUNSELOR</small></span>
+      </h1>
+      <div class="tabs" role="tablist" aria-label="画面の切り替え">
+        <button type="button" role="tab" id="tab-find" data-view="find" aria-selected="true">探す</button>
+        <button type="button" role="tab" id="tab-settings" data-view="settings" aria-selected="false">設定</button>
+      </div>
+    </div>
+    <p>プレースタイルや、いま使っているガットとの違いから、硬式テニスのガットを探します。</p>
+  </header>
+
+  <section id="view-find">
+    <div class="layout">
+      <aside>
+        <div class="panel modebox">
+          <span class="label" style="margin:0">探し方</span>
+          <div class="seg s2" id="mode">
+            <button type="button" data-mode="profile" aria-pressed="true">プレースタイルから</button>
+            <button type="button" data-mode="compare" aria-pressed="false">いまのガットと比べる</button>
+          </div>
+        </div>
+
+        <details class="panel" id="p-style" open>
+          <summary id="sum-main">あなたのプレースタイル</summary>
+          <div class="panel-body">
+            <div id="box-profile" style="display:flex;flex-direction:column;gap:16px">
+              <div>
+                <span class="label">タイプから選ぶ</span>
+                <div class="chips" id="presets"></div>
+              </div>
+              <div>
+                <span class="label">スイングスピード</span>
+                <div class="seg s3" id="swing"></div>
+              </div>
+              <div>
+                <span class="label">ガットに求めること</span>
+                <div id="sliders" style="display:flex;flex-direction:column;gap:6px"></div>
+              </div>
+              <label class="check" for="arm"><input type="checkbox" id="arm"> 肘や肩に不安がある</label>
+            </div>
+            <div id="box-compare" style="display:none;flex-direction:column;gap:16px">
+              <div>
+                <label class="label" for="cur">いま使っているガット</label>
+                <select id="cur" class="full"></select>
+              </div>
+              <div>
+                <span class="label">どう変えたいか(複数選択可)</span>
+                <div id="conds" style="display:flex;flex-direction:column;gap:10px"></div>
+              </div>
+              <div id="tradeoffs"></div>
+              <div>
+                <span class="label">ほかの性能</span>
+                <div class="seg s2" id="keep">
+                  <button type="button" data-keep="drop" aria-pressed="true">落とさない</button>
+                  <button type="button" data-keep="near" aria-pressed="false">変えない</button>
+                </div>
+              </div>
+              <div>
+                <span class="label">素材</span>
+                <div class="seg s3" id="same">
+                  <button type="button" data-same="all" aria-pressed="true">すべて</button>
+                  <button type="button" data-same="same" aria-pressed="false">同じ種類</button>
+                  <button type="button" data-same="diff" aria-pressed="false">違う種類</button>
+                </div>
+              </div>
+              <label class="check" for="strict"><input type="checkbox" id="strict"> 条件を満たす銘柄だけ表示</label>
+            </div>
+          </div>
+        </details>
+
+        <details class="panel" id="p-filter">
+          <summary>絞り込み</summary>
+          <div class="panel-body">
+            <div>
+              <label class="label" for="q">ガット名・メーカー</label>
+              <input type="search" id="q" placeholder="例: ポリツアー、YONEX" autocomplete="off">
+            </div>
+            <div>
+              <span class="label">メーカー(複数選択可)</span>
+              <div class="chips" id="brands"></div>
+            </div>
+            <div>
+              <span class="label">ガットの種類</span>
+              <div class="chips" id="types"></div>
+            </div>
+            <div>
+              <span class="label">特徴の評価(最低ライン)</span>
+              <div class="minrow" id="mins"></div>
+            </div>
+            <label class="check" for="favonly"><input type="checkbox" id="favonly"> お気に入りだけ表示</label>
+            <button class="linkbtn" id="reset" type="button">絞り込みをリセット</button>
+          </div>
+        </details>
+      </aside>
+
+      <main>
+        <div class="bar-top">
+          <h2 id="res-title">おすすめ順</h2>
+          <span class="count" id="count"></span>
+        </div>
+        <div id="top-box"></div>
+        <ol class="list" id="list"></ol>
+        <p class="foot">評価は1.0〜10.0(0.5刻み)の暫定値です。メーカーの公表値ではなく、製品特性や公開情報から作った比較用の目安です。ゲージ違いは同じ銘柄としてまとめています。実際の使用感と違う銘柄は、カードの「評価を編集」で直せます(このブラウザに保存されます)。</p>
+      </main>
+    </div>
+  </section>
+
+  <section id="view-settings" hidden>
+    <div class="stoolbar">
+      <div class="srow-top">
+        <div class="stotal">候補に出す銘柄 <b id="s-on">0</b> / <span id="s-all">0</span></div>
+        <div class="sbtns">
+          <button type="button" class="chip" id="s-allshow" aria-pressed="false">すべて表示</button>
+          <button type="button" class="chip" id="s-allhide" aria-pressed="false">すべて外す</button>
+        </div>
+      </div>
+      <input type="search" id="sq" placeholder="銘柄・メーカーを検索" autocomplete="off" aria-label="銘柄・メーカーを検索">
+      <label class="check" for="s-onlyoff"><input type="checkbox" id="s-onlyoff"> 外している銘柄だけ見る</label>
+    </div>
+    <p class="hint">チェックを外した銘柄は、「探す」の候補に出ません。</p>
+    <div id="slist" style="display:flex;flex-direction:column;gap:10px"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var RAW = [["BABOLAT","バボラ","ADDICTION +","ADDICTION +","ナイロンマルチ",7.5,5.0,7.0,6.0,8.0],["BABOLAT","バボラ","Addiction","アディクション","ナイロンマルチ",7.5,5.0,7.0,6.0,8.0],["BABOLAT","バボラ","RPM BLAST","RPMブラスト","ポリエステル",5.5,9.5,8.5,8.0,4.0],["BABOLAT","バボラ","RPM HURRICANE","RPMハリケーン","ポリエステル",6.0,8.0,8.0,8.0,4.5],["BABOLAT","バボラ","RPM POWER","RPMパワー","ポリエステル",7.0,7.5,8.0,7.0,6.0],["BABOLAT","バボラ","RPM ROUGH","RPMラフ","ポリエステル",5.5,9.0,8.5,7.5,4.5],["BABOLAT","バボラ","RPM TEAM","RPMチーム","ポリエステル",6.5,7.5,7.5,6.5,6.0],["BABOLAT","バボラ","Synthetic Gut","シンセティックガット","ナイロン",7.5,5.0,7.0,6.0,7.5],["BABOLAT","バボラ","TOUCH TONIC","タッチトニック","ナチュラル",9.0,5.5,8.0,4.5,9.5],["BABOLAT","バボラ","VS TOUCH","VSタッチ","ナチュラル",9.5,6.0,8.5,5.0,10.0],["BABOLAT","バボラ","XALT","XALT","ナイロンマルチ",8.5,4.5,7.5,5.5,9.0],["BABOLAT","バボラ","XPLORE","XPLORE","ナイロンマルチ",8.0,5.0,7.0,6.0,8.5],["BABOLAT","バボラ","Xcel","エクセル","ナイロンマルチ",8.5,4.5,7.0,5.0,9.5],["DIADEM","ダイアデム","DARK MATTER","ダークマター","ポリエステル",5.5,8.5,9.0,8.0,4.5],["DIADEM","ダイアデム","EVOLUTION","エボリューション","ポリエステル",6.5,7.5,8.0,7.0,5.5],["DIADEM","ダイアデム","HEAT","HEAT","ポリエステル",5.5,8.5,8.5,8.0,4.5],["DIADEM","ダイアデム","PRO X","プロX","ポリエステル",6.0,8.0,8.5,8.0,5.0],["DIADEM","ダイアデム","SOLSTICE BLACK","ソルスティスブラック","ポリエステル",5.5,9.0,8.5,8.0,4.5],["DIADEM","ダイアデム","SOLSTICE POWER","ソルスティスパワー","ポリエステル",6.0,9.0,8.5,7.5,5.0],["DUNLOP","ダンロップ","EXPLOSIVE BITE","エクスプロッシブ・バイト","ポリエステル",5.5,9.0,8.5,7.5,4.5],["DUNLOP","ダンロップ","EXPLOSIVE SPEED","エクスプロッシブ・スピード","ポリエステル",6.5,7.0,8.0,7.0,5.5],["DUNLOP","ダンロップ","EXPLOSIVE TOUR","エクスプロッシブ・ツアー","ポリエステル",6.0,8.0,8.5,7.5,5.0],["DUNLOP","ダンロップ","EXPLOSIVE TURBO","エクスプロッシブ・ターボ","ポリエステル",6.5,8.5,8.0,7.5,5.5],["DUNLOP","ダンロップ","ICONIC ALL","アイコニック・オール","ナイロンマルチ",7.5,5.0,7.5,6.0,8.0],["DUNLOP","ダンロップ","ICONIC SPEED","アイコニック・スピード","ナイロンマルチ",7.5,5.5,7.5,6.0,8.0],["DUNLOP","ダンロップ","ICONIC TOUCH","アイコニック・タッチ","ナイロンマルチ",8.5,4.5,7.5,5.5,9.5],["DUNLOP","ダンロップ","SYNTHETIC TOUGH","シンセティック・タフ","ナイロン",7.0,5.0,7.5,7.0,7.0],["GOSEN","ゴーセン","AK PRO","AKプロ","ナイロンマルチ",8.0,5.0,7.5,6.0,8.5],["GOSEN","ゴーセン","AK PRO CX","AKプロCX","ナイロンマルチ",7.5,5.0,8.0,6.5,8.0],["GOSEN","ゴーセン","EGGPOWER","エッグパワー","ポリエステル",6.0,9.0,8.0,7.5,4.5],["GOSEN","ゴーセン","G-SPIN3","ジースピン3","ポリエステル",5.5,9.0,8.5,8.0,4.5],["GOSEN","ゴーセン","G-TOUR 1","ジーツアー1","ポリエステル",6.0,8.5,9.0,8.0,5.0],["GOSEN","ゴーセン","G-TOUR 3","ジーツアー3","ポリエステル",5.5,9.0,8.5,8.0,4.5],["GOSEN","ゴーセン","G-XX1F","G-XX1F","ナイロンマルチ",8.0,5.0,7.5,6.0,8.5],["GOSEN","ゴーセン","G-XX2F","G-XX2F","ナイロンマルチ",8.0,5.0,7.5,6.0,8.5],["GOSEN","ゴーセン","G-XX3F","G-XX3F","ナイロンマルチ",8.0,5.0,7.5,6.0,8.5],["GOSEN","ゴーセン","MICRO SUPER","ミクロスーパー","ナイロン",7.5,5.0,7.0,6.0,7.5],["GOSEN","ゴーセン","OG-SHEEP","オージー・シープ","ナイロン",7.5,5.0,7.0,6.0,7.5],["HEAD","ヘッド","HAWK","ホーク","ポリエステル",5.5,7.0,9.0,8.0,4.5],["HEAD","ヘッド","HAWK POWER","ホークパワー","ポリエステル",6.5,7.5,8.5,7.5,5.5],["HEAD","ヘッド","HAWK ROUGH","ホークラフ","ポリエステル",5.5,8.5,8.5,7.5,4.5],["HEAD","ヘッド","HAWK TOUCH","ホークタッチ","ポリエステル",6.0,7.0,8.5,7.0,6.0],["HEAD","ヘッド","LYNX","リンクス","ポリエステル",6.5,7.5,8.0,7.0,6.0],["HEAD","ヘッド","LYNX EDGE","リンクスエッジ","ポリエステル",6.0,8.5,8.0,7.5,5.0],["HEAD","ヘッド","LYNX TOUR","リンクスツアー","ポリエステル",5.5,9.0,9.0,8.0,4.5],["HEAD","ヘッド","PPS","PPS","ナイロン",7.5,5.0,7.0,6.0,7.5],["HEAD","ヘッド","REFLEX MLT","リフレックス・マルチ","ナイロンマルチ",8.5,4.5,7.0,5.0,9.5],["HEAD","ヘッド","RIP CONTROL","リップコントロール","ナイロンマルチ",7.0,6.0,8.0,7.0,7.5],["HEAD","ヘッド","SONIC PRO","ソニックプロ","ポリエステル",7.0,6.5,7.5,6.5,6.5],["HEAD","ヘッド","SYNTHETIC GUT PPS","シンセティックガットPPS","ナイロン",7.5,5.0,7.0,6.0,7.5],["HEAD","ヘッド","VELOCITY MLT","ベロシティ・マルチ","ナイロンマルチ",7.5,5.5,7.5,6.5,8.5],["HEAD","ヘッド","VELOCITY POWER","ベロシティパワー","ナイロンマルチ",8.0,5.5,7.5,6.0,8.5],["LUXILON","ルキシロン","4G","4G（フォージー）","ポリエステル",5.0,7.0,9.5,9.0,3.5],["LUXILON","ルキシロン","4G ROUGH","4Gラフ","ポリエステル",5.0,8.0,9.0,8.5,3.5],["LUXILON","ルキシロン","4G SOFT","4Gソフト","ポリエステル",5.5,7.0,9.0,8.0,4.5],["LUXILON","ルキシロン","ADRENALINE","アドレナリン","ポリエステル",6.0,7.0,8.0,7.5,5.0],["LUXILON","ルキシロン","ALU POWER","アルパワー","ポリエステル",6.0,8.0,9.0,7.0,4.5],["LUXILON","ルキシロン","ALU POWER ROUGH","アルパワー・ラフ","ポリエステル",6.0,9.0,8.5,7.0,4.5],["LUXILON","ルキシロン","ALU POWER SOFT","アルパワー・ソフト","ポリエステル",6.5,7.5,8.5,6.5,5.5],["LUXILON","ルキシロン","ALU POWER SPIN","アルパワー・スピン","ポリエステル",5.5,9.0,8.5,7.0,4.5],["LUXILON","ルキシロン","ALU POWER VIBE","アルパワー・バイブ","ポリエステル",6.0,8.0,8.5,7.0,5.0],["LUXILON","ルキシロン","ECO SPIN","エコ・スピン","ポリエステル",6.5,8.5,8.0,7.0,5.0],["LUXILON","ルキシロン","ELEMENT","エレメント","ポリエステル",7.0,7.0,8.0,6.5,6.5],["LUXILON","ルキシロン","SMART","スマート","ポリエステル",7.0,7.0,7.5,6.0,6.5],["POLYFIBRE","ポリファイバー","BLACK VENOM","ブラックベノム","ポリエステル",6.5,8.0,8.0,7.5,5.5],["POLYFIBRE","ポリファイバー","TCS","TCS","ポリエステル",6.5,7.0,8.0,7.0,6.0],["PRINCE","プリンス","BEAST SP","ビーストSP","ポリエステル",6.0,8.5,8.5,7.5,5.0],["PRINCE","プリンス","BEAST XT","ビーストXT","ポリエステル",6.5,7.5,8.5,7.5,5.5],["PRINCE","プリンス","EMBLEM CONTROL","エンブレムコントロール","ナイロンマルチ",7.5,5.5,8.0,6.0,8.0],["PRINCE","プリンス","EMBLEM LT","エンブレムLT","ナイロンマルチ",8.5,4.5,7.0,5.0,9.0],["PRINCE","プリンス","EMBLEM SOFT","エンブレムソフト","ナイロンマルチ",9.0,4.5,7.0,5.0,9.5],["PRINCE","プリンス","HARRIER POWER","ハリアーパワー","ポリエステル",7.0,7.5,8.0,7.0,6.0],["PRINCE","プリンス","LIGHTNING XP","ライトニングXP","ナイロン",8.0,5.0,7.0,6.0,8.0],["PRINCE","プリンス","LIGHTNING XX","ライトニングXX","ナイロン",8.0,5.0,7.0,6.0,8.0],["PRINCE","プリンス","PHANTOM PRO","ファントムプロ","ポリエステル",5.5,7.5,9.0,8.5,4.5],["PRINCE","プリンス","PHANTOM SPIN","ファントムスピン","ポリエステル",5.5,9.0,8.5,8.0,4.5],["PRINCE","プリンス","SYNTHETIC GUT DURAFLEX","SYNTHETIC GUT DURAFLEX","ナイロン",7.5,5.0,7.0,6.5,7.5],["PRINCE","プリンス","TOUR XP","TOUR XP","ポリエステル",6.0,8.0,8.0,7.5,5.0],["PRINCE","プリンス","TOUR XT","TOUR XT","ポリエステル",6.5,7.5,8.0,7.0,5.5],["SIGNUM PRO","シグナムプロ","FIRESTORM","ファイアストーム","ポリエステル",7.0,7.0,8.0,7.0,6.5],["SIGNUM PRO","シグナムプロ","HYPERION","ハイペリオン","ポリエステル",6.5,7.0,8.0,7.5,5.5],["SIGNUM PRO","シグナムプロ","OUTBREAK","アウトブレイク","ポリエステル",6.5,7.5,8.0,7.5,6.0],["SIGNUM PRO","シグナムプロ","POLY PLASMA","ポリプラズマ","ポリエステル",7.0,7.0,8.0,8.0,6.0],["SOLINCO","ソリンコ","CONFIDENTIAL","コンフィデンシャル","ポリエステル",5.5,9.0,9.5,8.0,4.5],["SOLINCO","ソリンコ","HYPER-G","ハイパーG","ポリエステル",6.0,9.5,9.0,8.0,5.0],["SOLINCO","ソリンコ","HYPER-G SOFT","ハイパーGソフト","ポリエステル",6.5,9.0,8.5,7.0,6.0],["SOLINCO","ソリンコ","OUTLAST","アウトラスト","ポリエステル",6.5,7.5,8.0,8.0,5.5],["SOLINCO","ソリンコ","TOUR BITE","ツアーバイト","ポリエステル",5.5,9.5,9.0,8.5,4.0],["SOLINCO","ソリンコ","TOUR BITE SOFT","ツアーバイトソフト","ポリエステル",6.0,9.0,8.5,7.5,5.0],["TOALSON","トアルソン","ASTERISTA","アスタリスタ","ナイロン",7.5,5.5,7.0,6.5,8.0],["TOALSON","トアルソン","ASTERISTA ARMORED","アスタリスタ・アーマード","ナイロン",7.0,6.0,7.5,8.0,7.0],["TOALSON","トアルソン","BIOLOGIC CR1296","バイオロジック・CR1296","ナイロンマルチ",8.0,5.0,7.5,6.0,8.5],["TOALSON","トアルソン","BIOLOGIC DOUBLE XX","バイオロジック・ダブルXX","ナイロンマルチ",8.0,5.0,7.5,6.0,8.5],["TOALSON","トアルソン","BIOLOGIC LIVEWIRE","バイオロジック・ライブワイヤー","ナイロンマルチ",8.5,4.5,7.5,5.0,9.0],["TOALSON","トアルソン","RENCON DEVIL SPIN","レンコン・デビルスピン","ポリエステル",5.5,9.0,8.0,7.5,4.5],["TOALSON","トアルソン","RENCON ZERO","レンコン・ゼロ","ポリエステル",6.5,8.0,8.0,7.5,5.5],["TOALSON","トアルソン","T8","T8","ポリエステル",6.0,8.5,8.5,8.0,5.0],["TOPSPIN","トップスピン","CYBER FLASH","CYBER FLASH","ポリエステル",6.5,7.5,8.5,7.5,5.5],["TOROLINE","トロライン","ABSOLUTE","アブソリュート","ポリエステル",6.0,8.0,9.0,8.0,5.0],["TOROLINE","トロライン","CAVIAR","キャビア","ポリエステル",6.0,8.5,8.0,8.0,5.0],["TOROLINE","トロライン","TOUR","ツアー","ポリエステル",6.0,8.5,8.5,8.0,5.0],["Tecnifibre","テクニファイバー","BLACK CODE","ブラックコード","ポリエステル",6.0,8.0,8.0,7.5,5.0],["Tecnifibre","テクニファイバー","BLACK CODE 4S","ブラックコード4S","ポリエステル",5.5,9.0,8.5,7.5,4.5],["Tecnifibre","テクニファイバー","DURAMIX","デュラミックス","ナイロンマルチ",7.5,5.5,8.0,7.0,8.0],["Tecnifibre","テクニファイバー","ICE CODE","アイスコード","ポリエステル",6.0,7.5,8.5,7.5,5.0],["Tecnifibre","テクニファイバー","MULTIFEEL","マルチフィール","ナイロン",7.5,5.0,7.0,6.0,8.0],["Tecnifibre","テクニファイバー","NRG2","NRG2","ナイロンマルチ",8.5,4.5,7.5,5.0,9.5],["Tecnifibre","テクニファイバー","RAZOR CODE","レーザーコード","ポリエステル",5.5,7.5,9.0,8.0,4.5],["Tecnifibre","テクニファイバー","RAZOR SOFT","レーザーソフト","ポリエステル",6.5,7.5,8.0,7.0,6.0],["Tecnifibre","テクニファイバー","RAZOR SPIN","レーザースピン","ポリエステル",5.5,9.0,8.5,7.5,4.5],["Tecnifibre","テクニファイバー","RED CODE","レッドコード","ポリエステル",5.5,7.0,8.5,8.0,4.5],["Tecnifibre","テクニファイバー","TGV","TGV","ナイロンマルチ",8.0,4.5,7.5,5.5,9.0],["Tecnifibre","テクニファイバー","TRIAX","トライアックス","ナイロンマルチ",8.0,5.5,8.0,6.5,8.5],["Tecnifibre","テクニファイバー","X-ONE BIPHASE","エックスワン・バイフェイズ","ナイロンマルチ",9.0,4.5,7.5,5.0,9.5],["Tecnifibre","テクニファイバー","XR3","XR3","ナイロンマルチ",8.5,5.0,7.5,5.5,9.0],["WILSON","ウイルソン","NATURAL GUT","ナチュラルガット","ナチュラル",9.5,6.0,8.5,5.0,10.0],["WILSON","ウイルソン","NXT","NXT","ナイロンマルチ",8.5,4.5,7.5,5.0,9.5],["WILSON","ウイルソン","NXT CONTROL","NXTコントロール","ナイロンマルチ",7.5,5.5,8.0,6.0,8.0],["WILSON","ウイルソン","NXT POWER","NXTパワー","ナイロンマルチ",9.0,4.5,7.0,5.0,9.5],["WILSON","ウイルソン","NXT SOFT","NXTソフト","ナイロンマルチ",8.5,4.5,7.5,5.0,9.5],["WILSON","ウイルソン","REVOLVE","リボルブ","ポリエステル",6.5,7.5,8.0,7.0,5.5],["WILSON","ウイルソン","REVOLVE SPIN","リボルブスピン","ポリエステル",6.0,8.5,8.0,7.0,5.0],["WILSON","ウイルソン","SENSATION","センセーション","ナイロンマルチ",7.5,5.0,7.0,6.0,8.0],["YONEX","ヨネックス","DYNawire","ダイナワイヤー","ナイロン",7.5,5.0,7.0,7.0,7.5],["YONEX","ヨネックス","MULTI-SENSA","マルチセンサ","ナイロンマルチ",8.0,5.0,7.5,5.5,8.5],["YONEX","ヨネックス","POLYTOUR AIR","ポリツアーエア","ポリエステル",7.5,7.0,7.5,6.0,7.0],["YONEX","ヨネックス","POLYTOUR DRIVE","ポリツアードライブ","ポリエステル",6.0,8.5,8.5,7.5,5.0],["YONEX","ヨネックス","POLYTOUR FIRE","ポリツアーファイア","ポリエステル",7.0,7.5,8.0,7.0,6.0],["YONEX","ヨネックス","POLYTOUR FORCE","ポリツアーフォース","ポリエステル",6.0,8.0,8.5,8.0,5.0],["YONEX","ヨネックス","POLYTOUR PRO","ポリツアープロ","ポリエステル",6.5,7.5,8.0,7.5,6.0],["YONEX","ヨネックス","POLYTOUR REV","ポリツアーレブ","ポリエステル",6.0,9.0,8.5,7.5,5.5],["YONEX","ヨネックス","POLYTOUR SPIN","ポリツアースピン","ポリエステル",5.5,9.0,8.0,7.5,4.5],["YONEX","ヨネックス","POLYTOUR SPIN G","ポリツアースピンG","ポリエステル",5.5,9.5,8.0,7.5,4.5],["YONEX","ヨネックス","POLYTOUR STRIKE","ポリツアーストライク","ポリエステル",5.5,7.5,9.0,8.0,4.5],["YONEX","ヨネックス","POLYTOUR TOUGH","ポリツアータフ","ポリエステル",5.5,7.0,9.0,9.0,4.0],["YONEX","ヨネックス","REXIS","レクシス","ナイロンマルチ",8.0,4.5,7.0,5.5,9.0],["YONEX","ヨネックス","REXIS COMFORT","レクシスコンフォート","ナイロンマルチ",8.5,4.5,7.0,5.0,9.5],["YONEX","ヨネックス","REXIS FEEL","レクシスフィール","ナイロンマルチ",8.0,5.0,7.5,5.5,9.0],["YONEX","ヨネックス","REXIS SPEED","レクシススピード","ナイロンマルチ",7.5,5.0,7.5,6.0,8.0],["YONEX","ヨネックス","TOUR SUPER 850","ツアースーパー850","ナイロンマルチ",7.5,5.0,7.5,6.0,8.5],["YONEX","ヨネックス","TOUR SUPER 850 PRO","ツアースーパー850プロ","ナイロンマルチ",7.0,5.5,8.0,6.5,8.0]];
+  var AX = [
+    { k: 'power', l: 'パワー' }, { k: 'spin', l: 'スピン' }, { k: 'control', l: 'コントロール' },
+    { k: 'durability', l: '耐久性' }, { k: 'comfort', l: '快適性' }
+  ];
+  var TYPES = ['ポリエステル', 'ナイロンマルチ', 'ナイロン', 'ナチュラル'];
+  var LEVELS = ['不要', '少し', '重視', '最重視'];
+  var CONDS = [
+    { id: 'powerUp', ax: 'power', sg: 1, l: 'もっと飛ばしたい', t: '飛びが増えると、コントロールや耐久性は下がりやすい傾向があります。' },
+    { id: 'powerDown', ax: 'power', sg: -1, l: '飛びすぎを抑えたい', t: '飛びを抑えると、コントロールは上がりやすい一方で、快適性は下がりやすい傾向があります。' },
+    { id: 'spinUp', ax: 'spin', sg: 1, l: 'スピン量を増やしたい', t: 'スピンを重視したポリエステルは、快適性が下がりやすい傾向があります。' },
+    { id: 'controlUp', ax: 'control', sg: 1, l: 'コントロールを高めたい', t: 'コントロールを上げると、飛びが減りやすい傾向があります。' },
+    { id: 'comfortUp', ax: 'comfort', sg: 1, l: 'やわらかく、腕にやさしく', t: 'やわらかいほど、耐久性が下がりやすい傾向があります。' },
+    { id: 'comfortDown', ax: 'comfort', sg: -1, l: 'しっかり硬めの打球感に', t: '硬めにすると、耐久性やコントロールは上がりやすく、飛びは減りやすい傾向があります。' },
+    { id: 'durUp', ax: 'durability', sg: 1, l: '切れにくくしたい', t: '耐久性を上げると、飛びや快適性が下がりやすい傾向があります。' }
+  ];
+  var STEPS = [{ v: 0.5, l: '少し' }, { v: 1, l: 'もう少し' }, { v: 2, l: '大きく' }];
+  var PRESETS = [
+    { id: 'hard', name: 'ハードヒッター', swing: 'fast', w: { power: 1, spin: 3, control: 3, durability: 2, comfort: 1 } },
+    { id: 'all', name: 'オールラウンダー', swing: 'mid', w: { power: 2, spin: 2, control: 2, durability: 2, comfort: 2 } },
+    { id: 'defense', name: 'つなぐ守備型', swing: 'mid', w: { power: 2, spin: 2, control: 3, durability: 1, comfort: 2 } },
+    { id: 'easy', name: '楽に飛ばしたい', swing: 'slow', w: { power: 3, spin: 1, control: 2, durability: 1, comfort: 3 } }
+  ];
+  var SWINGS = [{ v: 'slow', l: 'ゆっくり' }, { v: 'mid', l: '普通' }, { v: 'fast', l: '速い' }];
+  var PAGE = 40;
+
+  function norm(s) {
+    return String(s).toLowerCase().replace(/[\s\-_・.＋+]/g, '').replace(/[ぁ-ゖ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); });
+  }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmt(v) { return Number(v).toFixed(1); }
+
+  var S = RAW.map(function (a, i) {
+    var s = { id: i, key: a[0] + '|' + a[2], maker: a[0], makerJa: a[1], name: a[2], nameJa: a[3], type: a[4],
+      o: { power: a[5], spin: a[6], control: a[7], durability: a[8], comfort: a[9] } };
+    s.hay = norm(s.maker + s.makerJa + s.name + s.nameJa);
+    return s;
+  });
+  var BYKEY = {}; S.forEach(function (s) { BYKEY[s.key] = s; });
+  var MAKERS = []; S.forEach(function (s) { if (!MAKERS.some(function (m) { return m.en === s.maker; })) MAKERS.push({ en: s.maker, ja: s.makerJa }); });
+  MAKERS.sort(function (a, b) { return a.en.localeCompare(b.en); });
+
+  function defaults() {
+    return { mode: 'profile', preset: 'all', swing: 'mid', arm: false, w: { power: 2, spin: 2, control: 2, durability: 2, comfort: 2 },
+      brands: [], types: [], mins: { power: 0, spin: 0, control: 0, durability: 0, comfort: 0 }, q: '', favOnly: false, favs: [], hidden: [], edits: {},
+      cmp: { cur: '', conds: {}, keep: 'drop', same: 'all', strict: true, mx: 'power', my: 'spin' } };
+  }
+  var KEY = 'gatt-finder-v2';
+  var st = defaults();
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var o = JSON.parse(raw), d = defaults();
+      Object.keys(d).forEach(function (k) { if (o && o[k] !== undefined) d[k] = o[k]; });
+      d.cmp = Object.assign(defaults().cmp, o && o.cmp ? o.cmp : {});
+      st = d;
+    }
+  } catch (e) {}
+  var HID = new Set(st.hidden);
+  function save() { st.hidden = Array.from(HID); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  function applyEdits() {
+    S.forEach(function (s) { s.r = Object.assign({}, s.o, st.edits[s.key] || {}); });
+  }
+  applyEdits();
+
+  var $ = function (id) { return document.getElementById(id); };
+  var editing = null, limit = PAGE, view = 'find';
+  var sq = '', sOnlyOff = false, openMakers = new Set(), mapSel = null, mapOpen = true;
+
+  function title(s) { return s.makerJa + ' ' + s.nameJa; }
+  function subtitle(s) {
+    var a = norm(s.makerJa + s.nameJa), b = norm(s.maker + s.name);
+    return a === b ? '' : s.maker + ' ' + s.name;
+  }
+
+  /* ---------- 絞り込み ---------- */
+  function passes(s) {
+    if (HID.has(s.key)) return false;
+    var q = norm(st.q.trim());
+    if (q && s.hay.indexOf(q) < 0) return false;
+    if (st.brands.length && st.brands.indexOf(s.maker) < 0) return false;
+    if (st.types.length && st.types.indexOf(s.type) < 0) return false;
+    for (var i = 0; i < AX.length; i++) { if (s.r[AX[i].k] < st.mins[AX[i].k]) return false; }
+    if (st.favOnly && st.favs.indexOf(s.key) < 0) return false;
+    return true;
+  }
+
+  /* ---------- プレースタイル採点 ---------- */
+  function weights() {
+    var w = {}; AX.forEach(function (a) { w[a.k] = st.w[a.k]; });
+    if (st.swing === 'slow') w.power += 1;
+    if (st.swing === 'fast') w.control += 1;
+    if (st.arm) w.comfort += 2;
+    return w;
+  }
+  function scoreProfile(s, w) {
+    var tot = 0, sum = 0;
+    AX.forEach(function (a) { tot += w[a.k]; sum += w[a.k] * (s.r[a.k] - 1); });
+    return tot ? Math.round(sum / (9 * tot) * 100) : 0;
+  }
+  function reason(s, w) {
+    var hot = AX.filter(function (a) { return w[a.k] > 0 && s.r[a.k] >= 7.5; })
+      .sort(function (a, b) { return w[b.k] * s.r[b.k] - w[a.k] * s.r[a.k]; }).slice(0, 2);
+    return hot.length ? '重視している' + hot.map(function (a) { return a.l; }).join('と') + 'が高評価です。' : '大きな弱点はなく、バランス型です。';
+  }
+
+  /* ---------- 比較採点 ---------- */
+  function runCompare() {
+    var cur = BYKEY[st.cmp.cur];
+    if (!cur) return null;
+    var tg = {}, ids = Object.keys(st.cmp.conds);
+    ids.forEach(function (id) {
+      var c = CONDS.filter(function (x) { return x.id === id; })[0];
+      if (c) tg[c.ax] = { sg: c.sg, T: st.cmp.conds[id] };
+    });
+    var tAxes = Object.keys(tg), others = AX.map(function (a) { return a.k; }).filter(function (k) { return !tg[k]; });
+    var rows = [], pool = [];
+    S.forEach(function (s) {
+      if (s.key === cur.key || !passes(s)) return;
+      if (st.cmp.same === 'same' && s.type !== cur.type) return;
+      if (st.cmp.same === 'diff' && s.type === cur.type) return;
+      var d = {}; AX.forEach(function (a) { d[a.k] = s.r[a.k] - cur.r[a.k]; });
+      var met = {}, ok = true, ach = 0;
+      tAxes.forEach(function (k) {
+        var g = tg[k], x = g.sg * d[k];
+        met[k] = x >= g.T - 1e-9;
+        if (!met[k]) ok = false;
+        ach += Math.min(Math.max(x, 0) / g.T, 1.5) / 1.5;
+      });
+      var inRes = !(st.cmp.strict && !ok);
+      pool.push({ s: s, d: d, inRes: inRes });
+      if (!inRes) return;
+      var sc;
+      if (!tAxes.length) {
+        var mad = AX.reduce(function (t, a) { return t + Math.abs(d[a.k]); }, 0) / AX.length;
+        sc = Math.max(0, Math.round(100 * (1 - mad / 4)));
+      } else {
+        var pen = 0;
+        if (others.length) {
+          pen = others.reduce(function (t, k) { return t + (st.cmp.keep === 'near' ? Math.abs(d[k]) : Math.max(0, -d[k])); }, 0) / others.length / 3;
+          pen = Math.min(pen, 1);
+        }
+        sc = Math.round(100 * (0.75 * (ach / tAxes.length) + 0.25 * (1 - pen)));
+      }
+      rows.push({ s: s, sc: sc, d: d, met: met });
+    });
+    rows.sort(function (a, b) { return (b.sc - a.sc) || a.s.name.localeCompare(b.s.name); });
+    return { cur: cur, rows: rows, tg: tg, pool: pool };
+  }
+
+  /* ---------- 描画部品 ---------- */
+  function metricsHtml(s, opt) {
+    opt = opt || {};
+    return AX.map(function (a) {
+      var v = s.r[a.k], hot = opt.hot && opt.hot[a.k];
+      var dl = '';
+      if (opt.d) {
+        var x = opt.d[a.k];
+        var txt = x > 0 ? '▲' + fmt(x) : x < 0 ? '▼' + fmt(-x) : '＝';
+        var cls = opt.tg && opt.tg[a.k] ? (opt.met[a.k] ? ' ok' : ' ng') : '';
+        dl = '<span class="dl' + cls + '">' + txt + '</span>';
+      }
+      return '<div class="m' + (opt.d ? ' cmp' : '') + (hot ? ' hot' : '') + '" role="img" aria-label="' + a.l + ' ' + fmt(v) + '">' +
+        '<span>' + a.l + '</span><span class="track"><i style="width:' + Math.round(v * 10) + '%"></i></span><span class="v">' + fmt(v) + '</span>' + dl + '</div>';
+    }).join('');
+  }
+  function editorHtml(s) {
+    var sel = AX.map(function (a) {
+      var o = '';
+      for (var n = 2; n <= 20; n++) { var v = n / 2; o += '<option value="' + v + '"' + (s.r[a.k] === v ? ' selected' : '') + '>' + fmt(v) + '</option>'; }
+      return '<label class="label" style="margin:0" for="e-' + s.id + '-' + a.k + '">' + a.l + '<select class="full" id="e-' + s.id + '-' + a.k + '">' + o + '</select></label>';
+    }).join('');
+    return '<div class="editor"><div class="minrow">' + sel + '</div><div class="editbtns">' +
+      '<button type="button" class="chip" data-save="' + s.id + '" aria-pressed="true">保存</button>' +
+      '<button type="button" class="chip" data-cancel="1" aria-pressed="false">キャンセル</button>' +
+      (st.edits[s.key] ? '<button type="button" class="linkbtn" data-revert="' + s.id + '">初期値に戻す</button>' : '') + '</div></div>';
+  }
+  function cardHtml(r, i, mode, ctx) {
+    var s = r.s, fav = st.favs.indexOf(s.key) >= 0, sub = subtitle(s);
+    var metrics, why = '';
+    if (mode === 'compare') {
+      metrics = metricsHtml(s, { d: r.d, tg: ctx.tg, met: r.met, hot: ctx.tg });
+    } else {
+      metrics = metricsHtml(s, { hot: ctx.hot });
+      why = '<p class="why">' + reason(s, ctx.w) + '</p>';
+    }
+    var scoreLabel = mode === 'compare' ? (Object.keys(ctx.tg).length ? 'マッチ度' : '近さ') : 'マッチ度';
+    return '<li class="item"><div class="rank">' + (i + 1) + '</div>' +
+      '<div><div class="head"><h3>' + esc(title(s)) + '</h3>' +
+      '<button type="button" class="star" data-fav="' + esc(s.key) + '" aria-pressed="' + fav + '" aria-label="お気に入り"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.7l1-5.9L3.5 9.7l5.9-.8z"/></svg></button></div>' +
+      (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') +
+      '<div class="meta"><span class="tag">' + s.type + '</span></div></div>' +
+      '<div class="score"><b>' + r.sc + '</b><small>' + scoreLabel + '</small></div>' + why +
+      '<div class="metrics">' + metrics + '</div>' +
+      '</li>';
+  }
+
+  function renderProfile() {
+    var w = weights();
+    var rows = S.filter(passes).map(function (s) { return { s: s, sc: scoreProfile(s, w) }; })
+      .sort(function (a, b) { return (b.sc - a.sc) || a.s.name.localeCompare(b.s.name); });
+    $('res-title').textContent = 'おすすめ順';
+    $('count').textContent = rows.length + '件 / 候補' + (S.length - HID.size) + '件';
+    var hotMap = {}; AX.forEach(function (a) { hotMap[a.k] = w[a.k] > 0; });
+    $('top-box').innerHTML = '';
+    drawList(rows, 'profile', { w: w, hot: hotMap });
+  }
+
+  function renderCompare() {
+    var res = runCompare();
+    if (!res) {
+      $('res-title').textContent = 'いまのガットと比べる';
+      $('count').textContent = '';
+      $('top-box').innerHTML = '';
+      $('list').innerHTML = '<li class="empty"><span>左の「いま使っているガット」を選ぶと、比べた結果が出ます。</span></li>';
+      return;
+    }
+    var hasC = Object.keys(res.tg).length > 0;
+    $('res-title').textContent = hasC ? '条件に合う順' : '近い順';
+    $('count').textContent = res.rows.length + '件';
+    $('top-box').innerHTML = '<div class="current"><span class="t">いまのガット</span><div class="head"><h3>' + esc(title(res.cur)) + '</h3></div>' +
+      (subtitle(res.cur) ? '<div class="sub">' + esc(subtitle(res.cur)) + '</div>' : '') +
+      '<div class="meta"><span class="tag">' + res.cur.type + '</span></div><div class="metrics" style="margin-top:4px">' + metricsHtml(res.cur) + '</div></div>' + mapHtml(res);
+    drawList(res.rows, 'compare', { tg: res.tg }, hasC);
+  }
+
+  function drawList(rows, mode, ctx, hasC) {
+    if (!rows.length) {
+      var msg = mode === 'compare' && st.cmp.strict && hasC ? '条件をすべて満たす銘柄がありません。「もう少し」を「少し」に変えるか、条件を減らしてください。' : '条件に合うガットがありません。絞り込みをゆるめてください。';
+      var extra = mode === 'compare' && st.cmp.strict && hasC ? '<button type="button" class="linkbtn" data-act="relax">条件を満たすものだけ、をやめる</button>' : '<button type="button" class="linkbtn" data-act="reset">絞り込みをリセット</button>';
+      $('list').innerHTML = '<li class="empty"><span>' + msg + '</span>' + extra + '</li>';
+      return;
+    }
+    var html = rows.slice(0, limit).map(function (r, i) { return cardHtml(r, i, mode, ctx); }).join('');
+    if (rows.length > limit) html += '<li class="more"><button type="button" class="chip" data-more="1" aria-pressed="false">さらに表示(残り' + (rows.length - limit) + '件)</button></li>';
+    $('list').innerHTML = html;
+  }
+
+  function renderFind() {
+    if (st.mode === 'compare') renderCompare(); else renderProfile();
+  }
+
+  /* ---------- ポジショニングマップ ---------- */
+  var SHAPE = { 'ポリエステル': 'c', 'ナイロンマルチ': 's', 'ナイロン': 't', 'ナチュラル': 'd' };
+  function shapeSvg(kind, x, y, r, cls) {
+    x = +x.toFixed(1); y = +y.toFixed(1);
+    if (kind === 'c') return '<circle class="dot ' + cls + '" cx="' + x + '" cy="' + y + '" r="' + r + '"/>';
+    if (kind === 's') return '<rect class="dot ' + cls + '" x="' + (x - r).toFixed(1) + '" y="' + (y - r).toFixed(1) + '" width="' + 2 * r + '" height="' + 2 * r + '"/>';
+    if (kind === 't') return '<polygon class="dot ' + cls + '" points="' + x + ',' + (y - r * 1.25).toFixed(1) + ' ' + (x + r * 1.15).toFixed(1) + ',' + (y + r * 0.9).toFixed(1) + ' ' + (x - r * 1.15).toFixed(1) + ',' + (y + r * 0.9).toFixed(1) + '"/>';
+    return '<polygon class="dot ' + cls + '" points="' + x + ',' + (y - r * 1.35).toFixed(1) + ' ' + (x + r * 1.35).toFixed(1) + ',' + y + ' ' + x + ',' + (y + r * 1.35).toFixed(1) + ' ' + (x - r * 1.35).toFixed(1) + ',' + y + '"/>';
+  }
+  function dtxt(x) { return x > 0 ? '▲' + fmt(x) : x < 0 ? '▼' + fmt(-x) : '＝'; }
+  function axLabel(k) { return AX.filter(function (a) { return a.k === k; })[0].l; }
+  function mapHtml(res) {
+    var mx = st.cmp.mx, my = st.cmp.my, W = 440, H = 400, ml = 46, mr = 14, mt = 14, mb = 44, pw = W - ml - mr, ph = H - mt - mb;
+    var pool = res.pool;
+    function rng(k) { var m = 0; pool.forEach(function (p) { m = Math.max(m, Math.abs(p.d[k])); }); return Math.min(9, Math.max(2, Math.ceil(m))); }
+    var Rx = rng(mx), Ry = rng(my);
+    var X = function (v) { return ml + (v + Rx) / (2 * Rx) * pw; }, Y = function (v) { return mt + (Ry - v) / (2 * Ry) * ph; };
+    var cx = X(0), cy = Y(0), g = '';
+    g += '<rect class="pbg" x="' + ml + '" y="' + mt + '" width="' + pw + '" height="' + ph + '"/>';
+    [[mx, true], [my, false]].forEach(function (a) {
+      var t = res.tg[a[0]]; if (!t) return;
+      var T = Math.min(t.T, a[1] ? Rx : Ry);
+      if (a[1]) {
+        var x1 = t.sg > 0 ? X(T) : ml, x2 = t.sg > 0 ? ml + pw : X(-T);
+        g += '<rect class="goal" x="' + x1.toFixed(1) + '" y="' + mt + '" width="' + (x2 - x1).toFixed(1) + '" height="' + ph + '"/>';
+      } else {
+        var y1 = t.sg > 0 ? mt : Y(-T), y2 = t.sg > 0 ? Y(T) : mt + ph;
+        g += '<rect class="goal" x="' + ml + '" y="' + y1.toFixed(1) + '" width="' + pw + '" height="' + (y2 - y1).toFixed(1) + '"/>';
+      }
+    });
+    var sx = Rx > 4 ? 2 : 1, sy = Ry > 4 ? 2 : 1, k, v;
+    for (k = -Math.floor(Rx / sx); k <= Math.floor(Rx / sx); k++) {
+      v = k * sx;
+      g += '<line class="' + (v === 0 ? 'ax' : 'gl') + '" x1="' + X(v).toFixed(1) + '" x2="' + X(v).toFixed(1) + '" y1="' + mt + '" y2="' + (mt + ph) + '"/>' +
+        '<text class="tk" x="' + X(v).toFixed(1) + '" y="' + (mt + ph + 14) + '">' + (v > 0 ? '+' : '') + v + '</text>';
+    }
+    for (k = -Math.floor(Ry / sy); k <= Math.floor(Ry / sy); k++) {
+      v = k * sy;
+      g += '<line class="' + (v === 0 ? 'ax' : 'gl') + '" x1="' + ml + '" x2="' + (ml + pw) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '"/>' +
+        '<text class="tk" style="text-anchor:end" x="' + (ml - 6) + '" y="' + (Y(v) + 3).toFixed(1) + '">' + (v > 0 ? '+' : '') + v + '</text>';
+    }
+    g += '<rect class="fr" x="' + ml + '" y="' + mt + '" width="' + pw + '" height="' + ph + '"/>';
+    g += '<circle class="me" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="8"/><text class="metx" x="' + (cx + 11).toFixed(1) + '" y="' + (cy - 10).toFixed(1) + '">いま</text>';
+    var cells = {};
+    pool.forEach(function (p) {
+      var key = p.d[mx].toFixed(1) + ',' + p.d[my].toFixed(1);
+      (cells[key] = cells[key] || { dx: p.d[mx], dy: p.d[my], items: [] }).items.push(p);
+    });
+    Object.keys(cells).forEach(function (key) {
+      var c = cells[key], px = X(c.dx), py = Y(c.dy);
+      c.items.sort(function (a, b) { return (a.inRes ? 1 : 0) - (b.inRes ? 1 : 0); });
+      g += '<g class="cell" data-cell="' + key + '" tabindex="0" role="button" aria-label="' + c.items.length + '件 ' + axLabel(mx) + dtxt(c.dx) + ' ' + axLabel(my) + dtxt(c.dy) + '">' +
+        '<circle class="hit" cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="' + (c.items.length > 1 ? 11 : 9) + '"/>';
+      c.items.forEach(function (p, i) {
+        var ang = i * 2.4, rad = 3.6 * Math.sqrt(i);
+        g += shapeSvg(SHAPE[p.s.type], px + rad * Math.cos(ang), py + rad * Math.sin(ang), 3.2, p.inRes ? 'in' : 'out');
+      });
+      if (mapSel === key) g += '<circle class="sel" cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="' + (c.items.length > 1 ? 13 : 10) + '"/>';
+      g += '</g>';
+    });
+    g += '<text class="at" x="' + (ml + pw / 2) + '" y="' + (H - 6) + '">' + axLabel(mx) + '(右ほど高い)</text>' +
+      '<text class="at" transform="rotate(-90 12 ' + (mt + ph / 2) + ')" x="12" y="' + (mt + ph / 2) + '">' + axLabel(my) + '(上ほど高い)</text>';
+    var sel = cells[mapSel], cap;
+    if (sel) {
+      cap = '<b>' + sel.items.length + '件</b> ' + sel.items.map(function (p) { return esc(title(p.s)); }).join('、') +
+        '<small>' + axLabel(mx) + ' ' + dtxt(sel.dx) + ' / ' + axLabel(my) + ' ' + dtxt(sel.dy) + '(いまのガットとの差)</small>';
+    } else cap = 'ドットをタップすると、銘柄名が出ます。';
+    var opts = function (cur) { return AX.map(function (a) { return '<option value="' + a.k + '"' + (a.k === cur ? ' selected' : '') + '>' + a.l + '</option>'; }).join(''); };
+    var hasC = Object.keys(res.tg).length > 0;
+    var lg = TYPES.map(function (ty) { return '<span><svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true">' + shapeSvg(SHAPE[ty], 0, 0, 3.6, 'in') + '</svg>' + ty + '</span>'; }).join('');
+    if (hasC && st.cmp.strict) lg += '<span><svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true">' + shapeSvg('c', 0, 0, 3.6, 'out') + '</svg>条件外</span>';
+    return '<details class="panel" id="mapdet"' + (mapOpen ? ' open' : '') + '><summary>ポジショニングマップ</summary><div class="panel-body">' +
+      '<div class="mapctl"><label for="mx">横軸<select id="mx">' + opts(mx) + '</select></label><label for="my">縦軸<select id="my">' + opts(my) + '</select></label></div>' +
+      '<svg class="mapsvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="いまのガットを中心に、他の銘柄との評価の差を2軸で示したマップ">' + g + '</svg>' +
+      '<div class="mapcap" aria-live="polite">' + cap + '</div><div class="maplegend">' + lg + (hasC ? '<span>色つきの帯: めざす方向</span>' : '') + '</div></div></details>';
+  }
+
+  /* ---------- 設定画面 ---------- */
+  function renderSettings() {
+    var q = norm(sq.trim()), out = '';
+    MAKERS.forEach(function (m) {
+      var all = S.filter(function (s) { return s.maker === m.en; });
+      var list = all.filter(function (s) {
+        if (q && s.hay.indexOf(q) < 0) return false;
+        if (sOnlyOff && !HID.has(s.key)) return false;
+        return true;
+      });
+      if (!list.length) return;
+      var open = openMakers.has(m.en) || q || sOnlyOff;
+      var on = all.filter(function (s) { return !HID.has(s.key); }).length;
+      out += '<div class="mk"><div class="mk-head"><button type="button" class="toggle" data-mk-toggle="' + esc(m.en) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+        esc(m.ja) + '<small>' + esc(m.en) + '</small></button>' +
+        '<span class="cnt" data-mc="' + esc(m.en) + '">' + on + '/' + all.length + '</span>' +
+        '<span class="acts"><button type="button" class="linkbtn" data-mk-all="show" data-mk="' + esc(m.en) + '">全て表示</button>' +
+        '<button type="button" class="linkbtn" data-mk-all="hide" data-mk="' + esc(m.en) + '">全て外す</button></span></div>' +
+        (open ? '<div class="mk-body">' + list.map(function (s) {
+          var sub = subtitle(s);
+          return '<div class="sitem"><label class="srow' + (HID.has(s.key) ? ' off' : '') + '"><input type="checkbox" data-sid="' + s.id + '"' + (HID.has(s.key) ? '' : ' checked') + '>' +
+            '<span class="sn">' + esc(s.nameJa) + (sub ? '<small>' + esc(s.name) + '</small>' : '') + '</span><span class="tag">' + s.type + '</span></label>' +
+            (editing === s.id ? editorHtml(s) : '<div class="sact"><button type="button" class="linkbtn" data-edit="' + s.id + '">評価を編集</button>' +
+              (st.edits[s.key] ? '<span class="tag edited">編集済み</span>' : '') + '</div>') + '</div>';
+        }).join('') + '</div>' : '') + '</div>';
+    });
+    var y0 = window.scrollY;
+    $('slist').innerHTML = out || '<div class="empty"><span>該当する銘柄がありません。</span></div>';
+    window.scrollTo(0, y0);
+    updateSettingsCounts();
+  }
+  function updateSettingsCounts() {
+    $('s-on').textContent = S.length - HID.size;
+    $('s-all').textContent = S.length;
+    MAKERS.forEach(function (m) {
+      var el = document.querySelector('[data-mc="' + m.en.replace(/"/g, '\\"') + '"]');
+      if (!el) return;
+      var all = S.filter(function (s) { return s.maker === m.en; });
+      el.textContent = all.filter(function (s) { return !HID.has(s.key); }).length + '/' + all.length;
+    });
+  }
+
+  /* ---------- コントロールの構築と同期 ---------- */
+  function buildControls() {
+    $('presets').innerHTML = PRESETS.map(function (p) { return '<button type="button" class="chip" data-preset="' + p.id + '" aria-pressed="false">' + p.name + '</button>'; }).join('');
+    $('swing').innerHTML = SWINGS.map(function (s) { return '<button type="button" data-swing="' + s.v + '" aria-pressed="false">' + s.l + '</button>'; }).join('');
+    $('sliders').innerHTML = AX.map(function (a) {
+      return '<div class="slider"><label class="nm" for="w-' + a.k + '">' + a.l + '</label><input type="range" id="w-' + a.k + '" min="0" max="3" step="1" data-w="' + a.k + '"><span class="val" id="v-' + a.k + '"></span></div>';
+    }).join('');
+    $('brands').innerHTML = MAKERS.map(function (m) {
+      var n = S.filter(function (s) { return s.maker === m.en; }).length;
+      return '<button type="button" class="chip" data-brand="' + esc(m.en) + '" aria-pressed="false">' + esc(m.ja) + ' <span style="font-family:var(--font-num);font-size:.75rem;opacity:.8">' + n + '</span></button>';
+    }).join('');
+    $('types').innerHTML = TYPES.map(function (t) { return '<button type="button" class="chip" data-type="' + t + '" aria-pressed="false">' + t + '</button>'; }).join('');
+    $('mins').innerHTML = AX.map(function (a) {
+      return '<label for="m-' + a.k + '">' + a.l + '<select id="m-' + a.k + '" data-min="' + a.k + '"><option value="0">指定なし</option>' +
+        [5, 6, 7, 8, 9].map(function (v) { return '<option value="' + v + '">' + v + '.0以上</option>'; }).join('') + '</select></label>';
+    }).join('');
+    var o = '<option value="">選んでください</option>';
+    MAKERS.forEach(function (m) {
+      o += '<optgroup label="' + esc(m.ja + ' ' + m.en) + '">' + S.filter(function (s) { return s.maker === m.en; }).map(function (s) {
+        return '<option value="' + esc(s.key) + '">' + esc(s.nameJa + (subtitle(s) ? ' / ' + s.name : '')) + '</option>';
+      }).join('') + '</optgroup>';
+    });
+    $('cur').innerHTML = o;
+  }
+  function renderConds() {
+    $('conds').innerHTML = CONDS.map(function (c) {
+      var on = st.cmp.conds[c.id] !== undefined;
+      return '<div class="cond"><button type="button" class="chip" data-cond="' + c.id + '" aria-pressed="' + on + '" style="align-self:flex-start">' + c.l + '</button>' +
+        (on ? '<div class="seg s3">' + STEPS.map(function (s) {
+          return '<button type="button" data-cid="' + c.id + '" data-lvl="' + s.v + '" aria-pressed="' + (st.cmp.conds[c.id] === s.v) + '">' + s.l + '</button>';
+        }).join('') + '</div>' : '') + '</div>';
+    }).join('');
+    var hints = CONDS.filter(function (c) { return st.cmp.conds[c.id] !== undefined; }).map(function (c) { return '<span>' + c.t + '</span>'; });
+    $('tradeoffs').innerHTML = hints.length ? '<div class="tradeoffs">' + hints.join('') + '</div>' : '';
+  }
+  function syncControls() {
+    document.querySelectorAll('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.mode === b.dataset.mode)); });
+    $('box-profile').style.display = st.mode === 'profile' ? 'flex' : 'none';
+    $('box-compare').style.display = st.mode === 'compare' ? 'flex' : 'none';
+    $('sum-main').textContent = st.mode === 'profile' ? 'あなたのプレースタイル' : 'いまのガットと比べる';
+    document.querySelectorAll('[data-preset]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.preset === b.dataset.preset)); });
+    document.querySelectorAll('[data-swing]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.swing === b.dataset.swing)); });
+    AX.forEach(function (a) {
+      $('w-' + a.k).value = st.w[a.k]; $('v-' + a.k).textContent = LEVELS[st.w[a.k]];
+      $('m-' + a.k).value = String(st.mins[a.k]);
+    });
+    $('arm').checked = !!st.arm; $('favonly').checked = !!st.favOnly; $('q').value = st.q;
+    document.querySelectorAll('[data-brand]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.brands.indexOf(b.dataset.brand) >= 0)); });
+    document.querySelectorAll('[data-type]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.types.indexOf(b.dataset.type) >= 0)); });
+    $('cur').value = BYKEY[st.cmp.cur] ? st.cmp.cur : '';
+    document.querySelectorAll('[data-keep]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.cmp.keep === b.dataset.keep)); });
+    document.querySelectorAll('[data-same]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.cmp.same === b.dataset.same)); });
+    $('strict').checked = !!st.cmp.strict;
+    renderConds();
+  }
+
+  function setView(v) {
+    view = v === 'settings' ? 'settings' : 'find';
+    $('view-find').hidden = view !== 'find';
+    $('view-settings').hidden = view !== 'settings';
+    $('tab-find').setAttribute('aria-selected', String(view === 'find'));
+    $('tab-settings').setAttribute('aria-selected', String(view === 'settings'));
+    if (view === 'settings') renderSettings(); else renderFind();
+  }
+  function go(v) { try { location.hash = v === 'settings' ? 'settings' : 'find'; } catch (e) {} setView(v); }
+
+  function refresh() { limit = PAGE; save(); syncControls(); if (view === 'settings') renderSettings(); else renderFind(); }
+
+  /* ---------- イベント ---------- */
+  function pickCell(cell) { var k = cell.getAttribute('data-cell'); mapSel = mapSel === k ? null : k; renderFind(); }
+  document.addEventListener('toggle', function (e) { if (e.target.id === 'mapdet') mapOpen = e.target.open; }, true);
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var cell = e.target.closest && e.target.closest('[data-cell]');
+    if (cell) { e.preventDefault(); pickCell(cell); }
+  });
+  document.addEventListener('click', function (e) {
+    var cell = e.target.closest && e.target.closest('[data-cell]');
+    if (cell) { pickCell(cell); return; }
+    var t = e.target.closest('button'); if (!t) return;
+    var d = t.dataset;
+    if (d.view) { go(d.view); return; }
+    if (d.mkToggle) { if (openMakers.has(d.mkToggle)) openMakers.delete(d.mkToggle); else openMakers.add(d.mkToggle); renderSettings(); return; }
+    if (d.mkAll) {
+      S.forEach(function (s) { if (s.maker === d.mk) { if (d.mkAll === 'show') HID.delete(s.key); else HID.add(s.key); } });
+      openMakers.add(d.mk); save(); renderSettings(); return;
+    }
+    if (t.id === 's-allshow') { HID.clear(); save(); renderSettings(); return; }
+    if (t.id === 's-allhide') { S.forEach(function (s) { HID.add(s.key); }); save(); renderSettings(); return; }
+    if (d.mode) { st.mode = d.mode; }
+    else if (d.preset) { var p = PRESETS.filter(function (x) { return x.id === d.preset; })[0]; st.preset = p.id; st.swing = p.swing; st.w = Object.assign({}, p.w); }
+    else if (d.swing) { st.swing = d.swing; st.preset = null; }
+    else if (d.brand) { var bi = st.brands.indexOf(d.brand); if (bi < 0) st.brands.push(d.brand); else st.brands.splice(bi, 1); }
+    else if (d.type) { var ti = st.types.indexOf(d.type); if (ti < 0) st.types.push(d.type); else st.types.splice(ti, 1); }
+    else if (d.cond) {
+      if (st.cmp.conds[d.cond] !== undefined) delete st.cmp.conds[d.cond];
+      else {
+        var c = CONDS.filter(function (x) { return x.id === d.cond; })[0];
+        CONDS.forEach(function (o) { if (o.ax === c.ax) delete st.cmp.conds[o.id]; });
+        st.cmp.conds[d.cond] = 1;
+      }
+    }
+    else if (d.cid) { st.cmp.conds[d.cid] = Number(d.lvl); }
+    else if (d.keep) { st.cmp.keep = d.keep; }
+    else if (d.same) { st.cmp.same = d.same; }
+    else if (d.fav) { var k = st.favs.indexOf(d.fav); if (k < 0) st.favs.push(d.fav); else st.favs.splice(k, 1); }
+    else if (d.edit) { editing = Number(d.edit); renderSettings(); return; }
+    else if (d.cancel) { editing = null; renderSettings(); return; }
+    else if (d.revert) { delete st.edits[S[Number(d.revert)].key]; applyEdits(); editing = null; }
+    else if (d.save) {
+      var s = S[Number(d.save)], r = {}, same = true;
+      AX.forEach(function (a) { r[a.k] = Number($('e-' + s.id + '-' + a.k).value); if (r[a.k] !== s.o[a.k]) same = false; });
+      if (same) delete st.edits[s.key]; else st.edits[s.key] = r;
+      applyEdits(); editing = null;
+    }
+    else if (d.more) { limit += PAGE; renderFind(); return; }
+    else if (t.id === 'reset' || d.act === 'reset') {
+      st.brands = []; st.types = []; st.q = ''; st.favOnly = false; st.mins = { power: 0, spin: 0, control: 0, durability: 0, comfort: 0 };
+    }
+    else if (d.act === 'relax') { st.cmp.strict = false; }
+    else { return; }
+    refresh();
+  });
+  document.addEventListener('input', function (e) {
+    var t = e.target, d = t.dataset;
+    if (d.sid !== undefined) {
+      var s = S[Number(d.sid)];
+      if (t.checked) HID.delete(s.key); else HID.add(s.key);
+      t.closest('.srow').classList.toggle('off', !t.checked);
+      save(); updateSettingsCounts(); return;
+    }
+    if (t.id === 'sq') { sq = t.value; renderSettings(); return; }
+    if (t.id === 's-onlyoff') { sOnlyOff = t.checked; renderSettings(); return; }
+    if (d.w) { st.w[d.w] = Number(t.value); st.preset = null; }
+    else if (t.id === 'q') { st.q = t.value; }
+    else if (t.id === 'arm') { st.arm = t.checked; }
+    else if (t.id === 'favonly') { st.favOnly = t.checked; }
+    else if (t.id === 'strict') { st.cmp.strict = t.checked; }
+    else if (t.id === 'cur') { st.cmp.cur = t.value; mapSel = null; }
+    else if (t.id === 'mx') { if (st.cmp.my === t.value) st.cmp.my = st.cmp.mx; st.cmp.mx = t.value; mapSel = null; }
+    else if (t.id === 'my') { if (st.cmp.mx === t.value) st.cmp.mx = st.cmp.my; st.cmp.my = t.value; mapSel = null; }
+    else if (d.min) { st.mins[d.min] = Number(t.value); }
+    else { return; }
+    limit = PAGE; save();
+    if (t.id === 'q') { document.querySelectorAll('[data-preset]').forEach(function (b) { b.setAttribute('aria-pressed', String(st.preset === b.dataset.preset)); }); }
+    else { syncControls(); }
+    renderFind();
+  });
+  window.addEventListener('hashchange', function () { setView(location.hash === '#settings' ? 'settings' : 'find'); });
+
+  buildControls(); syncControls();
+  setView(location.hash === '#settings' ? 'settings' : 'find');
+
+  // オフライン対応(file:// では動かないので登録しない)
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
