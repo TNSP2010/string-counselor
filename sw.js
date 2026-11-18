@@ -2,7 +2,7 @@
 // このファイルを直す。sw.js は build.py が作るので直接編集しない。
 // 版番号は中身のハッシュ。データや画面が変わると sw.js も変わり、ブラウザが更新を検知する。
 // 新しい版は裏で保存され、次に開いたときに表示される。
-var VERSION = '5a4efb08969f';
+var VERSION = '64a424f0af38';
 var PREFIX = 'string-counselor-';
 var CACHE = PREFIX + VERSION;
 var FONT_CACHE = PREFIX + 'fonts-v1'; // フォントは版をまたいで使い回す
